@@ -1721,7 +1721,9 @@ app.get('/api/packages', async (req, res) => {
         });
 
         // Inject static fields into tripFacts
-        tripFactsObj['status-ribbon'] = pkg.statusRibbon || null;
+        if (!tripFactsObj['status-ribbon']) {
+          tripFactsObj['status-ribbon'] = pkg.statusRibbon || null;
+        }
         tripFactsObj['group-size'] = pkg.groupSize ? String(pkg.groupSize) : null;
         tripFactsObj['max-altitude'] = pkg.maxAltitude ? String(pkg.maxAltitude) : null;
 
@@ -1752,6 +1754,8 @@ app.get('/api/packages', async (req, res) => {
       // User requested: defaultPrice, duration, durationUnit, featuredImage, featuredImageAlt, featuredImageCaption, groupSize, slug, tripFacts
       // And specifically asked to remove statusRibbon from root if it's there (it is in 'pkg' because 'pkg' is SELECT *).
       
+      const tripFactsParsed = JSON.parse(pkg.tripFacts);
+      
       return {
         id: pkg.id,
         title: pkg.title, // Usually needed for display even if not explicitly listed, but I'll stick to the list + title/id for safety
@@ -1764,7 +1768,7 @@ app.get('/api/packages', async (req, res) => {
         // groupSize is excluded from root as it is in tripFacts
         slug: pkg.slug,
         tripFacts: pkg.tripFacts,
-        // statusRibbon is intentionally excluded from root
+        statusRibbon: tripFactsParsed['status-ribbon'] || pkg.statusRibbon || null,
         // testimonials array is excluded from featured/list view to save bandwidth
         total_testimonials: pkg.total_testimonials,
         meta: {
@@ -1849,7 +1853,9 @@ app.get('/api/packages/:idOrSlug', async (req, res) => {
     });
 
     // Inject static fields into tripFacts
-    tripFactsObj['status-ribbon'] = packageData.statusRibbon || null;
+    if (!tripFactsObj['status-ribbon']) {
+      tripFactsObj['status-ribbon'] = packageData.statusRibbon || null;
+    }
     tripFactsObj['group-size'] = packageData.groupSize ? String(packageData.groupSize) : null;
     tripFactsObj['max-altitude'] = packageData.maxAltitude ? String(packageData.maxAltitude) : null;
 
