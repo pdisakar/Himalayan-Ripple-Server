@@ -2660,13 +2660,18 @@ app.delete('/api/teams/:id/permanent', async (req, res) => {
 app.get('/api/blogs', async (req, res) => {
   const { isFeatured } = req.query;
   try {
-    let query = 'SELECT * FROM blogs WHERE deletedAt IS NULL';
+    let query = `
+      SELECT blogs.*, authors.fullName as authorName 
+      FROM blogs 
+      LEFT JOIN authors ON blogs.authorId = authors.id 
+      WHERE blogs.deletedAt IS NULL
+    `;
     const params = [];
     if (isFeatured !== undefined) {
-      query += ' AND isFeatured = ?';
+      query += ' AND blogs.isFeatured = ?';
       params.push(isFeatured);
     }
-    query += ' ORDER BY createdAt DESC';
+    query += ' ORDER BY blogs.createdAt DESC';
     const blogs = await allAsync(query, params);
     const formattedBlogs = blogs.map(b => ({
       ...b,
@@ -2713,10 +2718,17 @@ app.get('/api/blogs/:idOrSlug', async (req, res) => {
   const { idOrSlug } = req.params;
   try {
     let blog;
+    const query = `
+      SELECT blogs.*, authors.fullName as authorName 
+      FROM blogs 
+      LEFT JOIN authors ON blogs.authorId = authors.id 
+      WHERE blogs.deletedAt IS NULL AND
+    `;
+
     if (!isNaN(idOrSlug)) {
-      blog = await getAsync('SELECT * FROM blogs WHERE id = ? AND deletedAt IS NULL', [idOrSlug]);
+      blog = await getAsync(`${query} blogs.id = ?`, [idOrSlug]);
     } else {
-      blog = await getAsync('SELECT * FROM blogs WHERE slug = ? AND deletedAt IS NULL', [idOrSlug]);
+      blog = await getAsync(`${query} blogs.slug = ?`, [idOrSlug]);
     }
 
     if (!blog) {
