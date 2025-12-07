@@ -2666,8 +2666,15 @@ app.delete('/api/teams/:id/permanent', async (req, res) => {
 app.get('/api/blogs', async (req, res) => {
   const { isFeatured } = req.query;
   try {
+    let selectFields = 'blogs.*, authors.fullName as authorName';
+    
+    // Optimization: fetch only required fields for featured list
+    if (isFeatured) {
+        selectFields = 'blogs.id, blogs.title, blogs.slug, blogs.publishedDate, blogs.featuredImage, blogs.featuredImageAlt, blogs.isFeatured, authors.fullName as authorName';
+    }
+
     let query = `
-      SELECT blogs.*, authors.fullName as authorName 
+      SELECT ${selectFields} 
       FROM blogs 
       LEFT JOIN authors ON blogs.authorId = authors.id 
       WHERE blogs.deletedAt IS NULL
@@ -2678,7 +2685,15 @@ app.get('/api/blogs', async (req, res) => {
       params.push(isFeatured);
     }
     query += ' ORDER BY blogs.createdAt DESC';
+    
     const blogs = await allAsync(query, params);
+    
+    // Only format meta if we fetched full data (not featured optimization)
+    if (isFeatured) {
+        res.json(blogs);
+        return;
+    }
+
     const formattedBlogs = blogs.map(b => ({
       ...b,
       meta: {
