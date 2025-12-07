@@ -3446,6 +3446,21 @@ app.get('/api/menus/type/:type', async (req, res) => {
     });
 
     const tree = buildTree(menus, packagesByPlace);
+
+    // Flatten logic for footer menus:
+    // User request: "i dont want anything from 2nd level of child... i dont want them at all"
+    // So we simply remove any children of the first-level items.
+    if (type === 'footer') {
+      tree.forEach(root => {
+        if (root.children) {
+          root.children.forEach(child => {
+             // Remove all nested children (grandchildren)
+             child.children = []; 
+          });
+        }
+      });
+    }
+
     res.status(200).json(tree);
   } catch (err) {
     console.error('Error fetching menus by type:', err);
@@ -3664,6 +3679,28 @@ app.delete('/api/menus/:id/permanent', async (req, res) => {
     res.status(200).json({ success: true, message: 'Menu permanently deleted' });
   } catch (err) {
     console.error('Error permanently deleting menu:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Bulk reorder menus
+app.post('/api/menus/reorder', async (req, res) => {
+  const { items } = req.body;
+  
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, message: 'Invalid items array' });
+  }
+
+  try {
+    // Transaction-like approach (though sqlite running sequentially is fine here)
+    for (const item of items) {
+      if (item.id !== undefined && item.displayOrder !== undefined) {
+        await runAsync('UPDATE menus SET displayOrder = ? WHERE id = ?', [item.displayOrder, item.id]);
+      }
+    }
+    res.status(200).json({ success: true, message: 'Menus reordered successfully' });
+  } catch (err) {
+    console.error('Error reordering menus:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
