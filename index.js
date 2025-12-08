@@ -3888,8 +3888,8 @@ app.post('/api/settings', async (req, res) => {
   const {
     viatorLink, tourradarLink, tripAdvisorLink,
     defaultMetaTitle, defaultMetaKeywords, defaultMetaDescription,
-    youtubeLink, pinterestLink, linkedinLink, instagramLink, twitterLink, facebookLink,
-    contactPerson1, contactPerson2, establishedYear, shortDescription,
+    youtubeLink, pinterestLink, linkedinLink, instagramLink, twitterLink, facebookLink, email,
+    contactPerson1, contactPerson1Email, contactPerson2, contactPerson2Email, establishedYear, shortDescription,
     mobileNumber1, mobileNumber2, phoneNumber, postBox, address, googleMapLocation, companyName
   } = req.body;
 
@@ -3904,8 +3904,8 @@ app.post('/api/settings', async (req, res) => {
         UPDATE settings SET
           viatorLink = ?, tourradarLink = ?, tripAdvisorLink = ?,
           defaultMetaDescription = ?, defaultMetaKeywords = ?, defaultMetaTitle = ?,
-          youtubeLink = ?, pinterestLink = ?, linkedinLink = ?, instagramLink = ?, twitterLink = ?, facebookLink = ?,
-          contactPerson1 = ?, contactPerson2 = ?, establishedYear = ?, shortDescription = ?,
+          youtubeLink = ?, pinterestLink = ?, linkedinLink = ?, instagramLink = ?, twitterLink = ?, facebookLink = ?, email = ?,
+          contactPerson1 = ?, contactPerson1Email = ?, contactPerson2 = ?, contactPerson2Email = ?, establishedYear = ?, shortDescription = ?,
           mobileNumber1 = ?, mobileNumber2 = ?, phoneNumber = ?, postBox = ?, address = ?, googleMapLocation = ?, companyName = ?,
           updatedAt = ?
         WHERE id = ?
@@ -3914,8 +3914,8 @@ app.post('/api/settings', async (req, res) => {
         req.body.defaultMeta?.description || defaultMetaDescription, 
         req.body.defaultMeta?.keywords || defaultMetaKeywords, 
         req.body.defaultMeta?.title || defaultMetaTitle,
-        youtubeLink, pinterestLink, linkedinLink, instagramLink, twitterLink, facebookLink,
-        contactPerson1, contactPerson2, establishedYear, shortDescription,
+        youtubeLink, pinterestLink, linkedinLink, instagramLink, twitterLink, facebookLink, email,
+        contactPerson1, contactPerson1Email, contactPerson2, contactPerson2Email, establishedYear, shortDescription,
         mobileNumber1, mobileNumber2, phoneNumber, postBox, address, googleMapLocation, companyName,
         now, existing.id
       ]);
@@ -3926,18 +3926,18 @@ app.post('/api/settings', async (req, res) => {
         INSERT INTO settings (
           viatorLink, tourradarLink, tripAdvisorLink,
           defaultMetaDescription, defaultMetaKeywords, defaultMetaTitle,
-          youtubeLink, pinterestLink, linkedinLink, instagramLink, twitterLink, facebookLink,
-          contactPerson1, contactPerson2, establishedYear, shortDescription,
+          youtubeLink, pinterestLink, linkedinLink, instagramLink, twitterLink, facebookLink, email,
+          contactPerson1, contactPerson1Email, contactPerson2, contactPerson2Email, establishedYear, shortDescription,
           mobileNumber1, mobileNumber2, phoneNumber, postBox, address, googleMapLocation, companyName,
           updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         viatorLink, tourradarLink, tripAdvisorLink,
         req.body.defaultMeta?.description || defaultMetaDescription, 
         req.body.defaultMeta?.keywords || defaultMetaKeywords, 
         req.body.defaultMeta?.title || defaultMetaTitle,
-        youtubeLink, pinterestLink, linkedinLink, instagramLink, twitterLink, facebookLink,
-        contactPerson1, contactPerson2, establishedYear, shortDescription,
+        youtubeLink, pinterestLink, linkedinLink, instagramLink, twitterLink, facebookLink, email,
+        contactPerson1, contactPerson1Email, contactPerson2, contactPerson2Email, establishedYear, shortDescription,
         mobileNumber1, mobileNumber2, phoneNumber, postBox, address, googleMapLocation, companyName,
         now
       ]);
