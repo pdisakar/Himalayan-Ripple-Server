@@ -1633,8 +1633,8 @@ app.post('/api/packages', async (req, res) => {
     if (groupPriceEnabled && groupPrices && Array.isArray(groupPrices)) {
       for (const gp of groupPrices) {
         await runAsync(
-          `INSERT INTO package_group_pricing (packageId, minPerson, maxPerson, price) VALUES (?, ?, ?, ?)`,
-          [packageId, gp.minPerson, gp.maxPerson, gp.price]
+          `INSERT INTO package_group_pricing (packageId, minPerson, maxPerson, price, isDefault) VALUES (?, ?, ?, ?, ?)`,
+          [packageId, gp.minPerson, gp.maxPerson, gp.price, gp.isDefault ? 1 : 0]
         );
       }
     }
@@ -2037,8 +2037,8 @@ app.put('/api/packages/:id', async (req, res) => {
     if (groupPriceEnabled && groupPrices && Array.isArray(groupPrices)) {
       for (const gp of groupPrices) {
         await runAsync(
-          `INSERT INTO package_group_pricing (packageId, minPerson, maxPerson, price) VALUES (?, ?, ?, ?)`,
-          [id, gp.minPerson, gp.maxPerson, gp.price]
+          `INSERT INTO package_group_pricing (packageId, minPerson, maxPerson, price, isDefault) VALUES (?, ?, ?, ?, ?)`,
+          [id, gp.minPerson, gp.maxPerson, gp.price, gp.isDefault ? 1 : 0]
         );
       }
     }
