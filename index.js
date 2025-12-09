@@ -188,12 +188,14 @@ const enrichPackage = async (pkg) => {
   tripFactsObj['status-ribbon'] = pkg.statusRibbon || null;
   tripFactsObj['group-size'] = pkg.groupSize ? String(pkg.groupSize) : null;
   tripFactsObj['max-altitude'] = pkg.maxAltitude ? String(pkg.maxAltitude) : null;
+  tripFactsObj['duration'] = pkg.duration ? String(pkg.duration) : null;
+  tripFactsObj['duration-unit'] = pkg.durationUnit || null;
 
   // Fetch testimonials for this package (exclude soft-deleted)
   const testimonials = await allAsync('SELECT * FROM testimonials WHERE packageId = ? AND deletedAt IS NULL', [pkg.id]);
 
   // Remove statusRibbon from root package object as it's already in tripFacts
-  const { statusRibbon, ...pkgWithoutStatusRibbon } = pkg;
+  const { statusRibbon, maxAltitude, duration, durationUnit, ...pkgWithoutStatusRibbon } = pkg;
 
   return formatMeta({
     ...pkgWithoutStatusRibbon,
@@ -1241,9 +1243,14 @@ app.post('/api/attributes', async (req, res) => {
 });
 
 // Delete attribute
+
 app.delete('/api/attributes/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    // Also delete any references in package_trip_facts to keep package meta clean
+    await runAsync('DELETE FROM package_trip_facts WHERE attributeId = ?', [id]);
+    
+    // Delete the attribute itself
     await runAsync('DELETE FROM package_attributes WHERE id = ?', [id]);
     res.json({ success: true, message: 'Attribute deleted' });
   } catch (err) {
@@ -1325,7 +1332,8 @@ app.delete('/api/fact-categories/:id', async (req, res) => {
       return res.status(403).json({ success: false, message: 'Cannot delete default category' });
     }
 
-    // Also delete associated attributes
+    // Also delete associated attributes and facts
+    await runAsync('DELETE FROM package_trip_facts WHERE categorySlug = ?', [category.slug]);
     await runAsync('DELETE FROM package_attributes WHERE type = ?', [category.slug]);
     await runAsync('DELETE FROM trip_fact_categories WHERE id = ?', [id]);
     res.json({ success: true, message: 'Category deleted' });
@@ -1735,6 +1743,8 @@ app.get('/api/packages', async (req, res) => {
         }
         tripFactsObj['group-size'] = pkg.groupSize ? String(pkg.groupSize) : null;
         tripFactsObj['max-altitude'] = pkg.maxAltitude ? String(pkg.maxAltitude) : null;
+        tripFactsObj['duration'] = pkg.duration ? String(pkg.duration) : null;
+        tripFactsObj['duration-unit'] = pkg.durationUnit || null;
 
         // Store as JSON string so client can parse it
         pkg.tripFacts = JSON.stringify(tripFactsObj);
