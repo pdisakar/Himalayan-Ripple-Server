@@ -115,6 +115,15 @@ const enrichPlace = async (place) => {
   
   // Fetch children places
   const children = await allAsync('SELECT * FROM places WHERE parentId = ? AND deletedAt IS NULL', [place.id]);
+
+  // Enrich children with package counts
+  const childrenWithCounts = await Promise.all(children.map(async (child) => {
+    const packageCount = await getPackageCountForPlace(child.id);
+    return {
+      ...child,
+      packageCount
+    };
+  }));
   
   // Fetch packages associated with this place
   const packages = await allAsync(
@@ -127,7 +136,7 @@ const enrichPlace = async (place) => {
 
   return formatMeta({
     ...place,
-    children,
+    children: childrenWithCounts,
     packages
   });
 };
