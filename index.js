@@ -4037,6 +4037,123 @@ app.get('/api/all-slugs', async (req, res) => {
   }
 });
 
+// ========================
+// BOOKING EMAIL ENDPOINT
+// ========================
+
+// Send booking email
+app.post('/api/send-booking-email', async (req, res) => {
+  const {
+    packageId,
+    packageTitle,
+    packageImage,
+    startDate,
+    endDate,
+    duration,
+    travelers,
+    pricePerPerson,
+    totalPrice,
+    leadTraveler
+  } = req.body;
+
+  // Validation
+  if (!packageTitle || !startDate || !travelers || !leadTraveler) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required booking information'
+    });
+  }
+
+  if (!leadTraveler.fullName || !leadTraveler.email) {
+    return res.status(400).json({
+      success: false,
+      message: 'Lead traveler name and email are required'
+    });
+  }
+
+  try {
+    // Log booking details (Will be replaced with actual email sending)
+    console.log('==== NEW BOOKING REQUEST ====');
+    console.log('Package:', packageTitle);
+    console.log('Dates:', `${startDate} to ${endDate}`);
+    console.log('Duration:', duration);
+    console.log('Travelers:', travelers);
+    console.log('Price per person:', pricePerPerson);
+    console.log('Total Price:', totalPrice);
+    console.log('Lead Traveler:');
+    console.log('  Name:', leadTraveler.fullName);
+    console.log('  Email:', leadTraveler.email);
+    console.log('  DOB:', leadTraveler.dateOfBirth);
+    console.log('  Nationality:', leadTraveler.nationality);
+    console.log('  Mobile:', `${leadTraveler.countryCode} ${leadTraveler.mobileNumber}`);
+    console.log('  Special Requirements:', leadTraveler.specialRequirements || 'None');
+    console.log('Submitted at:', new Date().toISOString());
+    console.log('==============================');
+
+    // TODO: Implement actual email sending
+    // For now, we'll just return success
+    // You can integrate nodemailer or any email service later
+
+    /*
+    // Example with nodemailer (uncomment when ready):
+    const nodemailer = require('nodemailer');
+    
+    const transporter = nodemailer.createTransporter({
+      host: 'your-smtp-host',
+      port: 587,
+      secure: false,
+      auth: {
+        user: 'your-email',
+        pass: 'your-password'
+      }
+    });
+
+    // Email to admin
+    await transporter.sendMail({
+      from: 'noreply@yoursite.com',
+      to: 'admin@yoursite.com',
+      subject: `New Booking Request: ${packageTitle}`,
+      html: `
+        <h2>New Booking Request</h2>
+        <p><strong>Package:</strong> ${packageTitle}</p>
+        <p><strong>Start Date:</strong> ${startDate}</p>
+        <p><strong>End Date:</strong> ${endDate}</p>
+        <p><strong>Travelers:</strong> ${travelers}</p>
+        <p><strong>Total Price:</strong> US$ ${totalPrice}</p>
+        <h3>Lead Traveler</h3>
+        <p><strong>Name:</strong> ${leadTraveler.fullName}</p>
+        <p><strong>Email:</strong> ${leadTraveler.email}</p>
+        <p><strong>Mobile:</strong> ${leadTraveler.countryCode} ${leadTraveler.mobileNumber}</p>
+      `
+    });
+
+    // Email to customer
+    await transporter.sendMail({
+      from: 'noreply@yoursite.com',
+      to: leadTraveler.email,
+      subject: `Booking Request Received - ${packageTitle}`,
+      html: `
+        <h2>Thank You for Your Booking Request</h2>
+        <p>Dear ${leadTraveler.fullName},</p>
+        <p>We have received your booking request for ${packageTitle}.</p>
+        <p>We will contact you shortly to confirm your booking.</p>
+      `
+    });
+    */
+
+    res.status(200).json({
+      success: true,
+      message: 'Booking request submitted successfully'
+    });
+  } catch (err) {
+    console.error('Error processing booking:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to submit booking request'
+    });
+  }
+});
+
 app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
   // Ensure default admin user exists (id 1) after server start
