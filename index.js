@@ -1671,13 +1671,24 @@ app.post('/api/packages', async (req, res) => {
 
 // Get all packages (paginated)
 app.get('/api/packages', async (req, res) => {
-  const { page = 1, limit = 10, search, status, featured, isBestselling } = req.query;
+  const { page = 1, limit = 10, search, status, featured, isBestselling, ids } = req.query;
   const offset = (page - 1) * limit;
 
   try {
     let query = 'SELECT * FROM packages WHERE deletedAt IS NULL';
     let countQuery = 'SELECT COUNT(*) as count FROM packages WHERE deletedAt IS NULL';
     const params = [];
+
+    // Support fetching by specific IDs (for related trips)
+    if (ids) {
+      const idArray = ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      if (idArray.length > 0) {
+        const placeholders = idArray.map(() => '?').join(',');
+        query += ` AND id IN (${placeholders})`;
+        countQuery += ` AND id IN (${placeholders})`;
+        params.push(...idArray);
+      }
+    }
 
     if (search) {
       query += ' AND (title LIKE ? OR slug LIKE ?)';
