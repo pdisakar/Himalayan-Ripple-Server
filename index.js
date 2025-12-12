@@ -4035,24 +4035,26 @@ app.get('/api/all-slugs', async (req, res) => {
       }
     };
 
-    // Fetch slugs independently
+    // Fetch ONLY slugs (no extra columns) for maximum performance
     const [places, packages, articles, blogs, testimonials] = await Promise.all([
       fetchSafe('places', 'SELECT slug FROM places WHERE deletedAt IS NULL AND status = 1'),
-      fetchSafe('packages', 'SELECT slug, featured FROM packages WHERE deletedAt IS NULL AND status = 1'),
-      fetchSafe('articles', 'SELECT slug, 0 as featured FROM articles WHERE deletedAt IS NULL AND status = 1'),
-      fetchSafe('blogs', 'SELECT slug, isFeatured as featured FROM blogs WHERE deletedAt IS NULL AND status = 1'),
-      fetchSafe('testimonials', 'SELECT slug, isFeatured as featured FROM testimonials WHERE deletedAt IS NULL AND status = 1')
+      fetchSafe('packages', 'SELECT slug FROM packages WHERE deletedAt IS NULL AND status = 1'),
+      fetchSafe('articles', 'SELECT slug FROM articles WHERE deletedAt IS NULL AND status = 1'),
+      fetchSafe('blogs', 'SELECT slug FROM blogs WHERE deletedAt IS NULL AND status = 1'),
+      fetchSafe('testimonials', 'SELECT slug FROM testimonials WHERE deletedAt IS NULL AND status = 1')
     ]);
 
-    // Combine all slugs
+    // Combine all slugs - simple array of objects with just slug
     const allSlugs = [
-      ...places.map(p => ({ slug: p.slug, featured: p.featured || 0 })),
-      ...packages.map(p => ({ slug: p.slug, featured: p.featured || 0 })),
-      ...articles.map(a => ({ slug: a.slug, featured: 0 })),
-      ...blogs.map(b => ({ slug: b.slug, featured: b.featured || 0 })),
-      ...testimonials.map(t => ({ slug: t.slug, featured: t.featured || 0 }))
+      ...places,
+      ...packages,
+      ...articles,
+      ...blogs,
+      ...testimonials
     ];
 
+    // Set cache headers for better performance
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
     res.json(allSlugs);
   } catch (err) {
     console.error('Error fetching all slugs:', err);
