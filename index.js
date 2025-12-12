@@ -4025,12 +4025,23 @@ app.post('/api/hero', async (req, res) => {
 // Get all slugs for static generation (ISR)
 app.get('/api/all-slugs', async (req, res) => {
   try {
-    // Fetch slugs from all content types
-    const [places, packages, articles, blogs] = await Promise.all([
-      allAsync('SELECT slug, featured FROM places WHERE deletedAt IS NULL AND status = 1'),
-      allAsync('SELECT slug, featured FROM packages WHERE deletedAt IS NULL AND status = 1'),
-      allAsync('SELECT slug, 0 as featured FROM articles WHERE deletedAt IS NULL AND status = 1'),
-      allAsync('SELECT slug, isFeatured as featured FROM blogs WHERE deletedAt IS NULL AND status = 1')
+    // Helper to fetch safely
+    const fetchSafe = async (name, query) => {
+      try {
+        return await allAsync(query);
+      } catch (e) {
+        console.error(`Error fetching slugs for ${name}:`, e.message);
+        return [];
+      }
+    };
+
+    // Fetch slugs independently
+    const [places, packages, articles, blogs, testimonials] = await Promise.all([
+      fetchSafe('places', 'SELECT slug FROM places WHERE deletedAt IS NULL AND status = 1'),
+      fetchSafe('packages', 'SELECT slug, featured FROM packages WHERE deletedAt IS NULL AND status = 1'),
+      fetchSafe('articles', 'SELECT slug, 0 as featured FROM articles WHERE deletedAt IS NULL AND status = 1'),
+      fetchSafe('blogs', 'SELECT slug, isFeatured as featured FROM blogs WHERE deletedAt IS NULL AND status = 1'),
+      fetchSafe('testimonials', 'SELECT slug, isFeatured as featured FROM testimonials WHERE deletedAt IS NULL AND status = 1')
     ]);
 
     // Combine all slugs
@@ -4038,7 +4049,8 @@ app.get('/api/all-slugs', async (req, res) => {
       ...places.map(p => ({ slug: p.slug, featured: p.featured || 0 })),
       ...packages.map(p => ({ slug: p.slug, featured: p.featured || 0 })),
       ...articles.map(a => ({ slug: a.slug, featured: 0 })),
-      ...blogs.map(b => ({ slug: b.slug, featured: b.featured || 0 }))
+      ...blogs.map(b => ({ slug: b.slug, featured: b.featured || 0 })),
+      ...testimonials.map(t => ({ slug: t.slug, featured: t.featured || 0 }))
     ];
 
     res.json(allSlugs);
