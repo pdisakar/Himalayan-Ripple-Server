@@ -1858,6 +1858,9 @@ app.get('/api/packages', validateApiKey, async (req, res) => {
         statusRibbon: tripFactsParsed['status-ribbon'] || pkg.statusRibbon || null,
         // testimonials array is excluded from featured/list view to save bandwidth
         total_testimonials: pkg.total_testimonials,
+        status: pkg.status,
+        createdAt: pkg.createdAt,
+        updatedAt: pkg.updatedAt,
         meta: {
           title: pkg.metaTitle,
           keywords: pkg.metaKeywords,
