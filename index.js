@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const sharp = require('sharp');
 
 // SQLite helper (db.js provides runAsync, getAsync, allAsync)
 const { runAsync, getAsync, allAsync } = require('./db');
@@ -493,7 +494,7 @@ app.post('/api/users/bulk-delete', authenticateToken, async (req, res) => {
 // IMAGE UPLOAD ENDPOINT
 // ========================
 
-// Upload image (converts base64 to file)
+// Upload image (converts to AVIF using Sharp)
 app.post('/api/upload/image', authenticateToken, async (req, res) => {
   const { image, type = 'featured' } = req.body;
 
@@ -502,13 +503,13 @@ app.post('/api/upload/image', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Extract base64 data (remove data:image/webp;base64, prefix if present)
+    // Extract base64 data (remove data:image/xxx;base64, prefix if present)
     const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
+    const inputBuffer = Buffer.from(base64Data, 'base64');
 
-    // Generate unique filename with .webp extension
+    // Generate unique filename with .avif extension
     const timestamp = Date.now();
-    const filename = `${type}-${timestamp}.webp`;
+    const filename = `${type}-${timestamp}.avif`;
     const filepath = path.join(__dirname, 'uploads', filename);
 
     // Ensure uploads directory exists
@@ -517,19 +518,25 @@ app.post('/api/upload/image', authenticateToken, async (req, res) => {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
 
-    // Write file to disk
-    fs.writeFileSync(filepath, buffer);
+    // Convert to AVIF using Sharp with optimization
+    await sharp(inputBuffer)
+      .avif({
+        quality: 80,      // Good balance between quality and size
+        effort: 4,        // Compression effort (0-9, 4 is balanced)
+        chromaSubsampling: '4:2:0' // Standard chroma subsampling
+      })
+      .toFile(filepath);
 
     // Return the public URL path
     const publicPath = `/uploads/${filename}`;
     res.status(200).json({
       success: true,
-      message: 'Image uploaded successfully',
+      message: 'Image uploaded and converted to AVIF successfully',
       path: publicPath
     });
   } catch (err) {
     console.error('Error uploading image:', err);
-    res.status(500).json({ success: false, message: 'Failed to upload image' });
+    res.status(500).json({ success: false, message: 'Failed to upload image', error: err.message });
   }
 });
 
