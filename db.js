@@ -472,7 +472,7 @@ const init = () => {
       { name: 'content', type: 'TEXT' },
       { name: 'pageType', type: "TEXT DEFAULT 'default'" }
     ];
-    
+
     columns.forEach(col => {
       db.run(`ALTER TABLE articles ADD COLUMN ${col.name} ${col.type}`, (err) => {
         // Ignore error if column already exists
@@ -482,14 +482,14 @@ const init = () => {
       });
     });
   };
-  
+
   // Migration: Add imageAlt and imageCaption to hero_sections table
   const migrateHeroSections = () => {
     const columns = [
       { name: 'imageAlt', type: 'TEXT' },
       { name: 'imageCaption', type: 'TEXT' }
     ];
-    
+
     columns.forEach(col => {
       db.run(`ALTER TABLE hero_sections ADD COLUMN ${col.name} ${col.type}`, (err) => {
         // Ignore error if column already exists
@@ -499,9 +499,20 @@ const init = () => {
       });
     });
   };
-  
+
   migrateArticles();
   migrateHeroSections();
+
+  // Migration: Add token to users table
+  const migrateUsers = () => {
+    db.run(`ALTER TABLE users ADD COLUMN token TEXT`, (err) => {
+      // Ignore error if column already exists
+      if (!err) {
+        console.log(`Added column token to users table`);
+      }
+    });
+  };
+  migrateUsers();
 };
 
 init();

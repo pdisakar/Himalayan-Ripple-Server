@@ -3,6 +3,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // SQLite helper (db.js provides runAsync, getAsync, allAsync)
 const { runAsync, getAsync, allAsync } = require('./db');
@@ -208,6 +209,49 @@ const enrichPackage = async (pkg) => {
   });
 };
 
+// Authentication Middleware
+const authenticateToken = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
+
+  if (!token) {
+    return res.status(401).json({ message: 'Access denied. No token provided.' });
+  }
+
+  try {
+    const user = await getAsync('SELECT * FROM users WHERE token = ?', [token]);
+    if (!user) {
+      return res.status(403).json({ message: 'Invalid token.' });
+    }
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error('Auth error:', err);
+    res.status(500).json({ message: 'Server error during authentication' });
+  }
+};
+ 
+// API Key Middleware
+const API_KEY = 'himalayan-ripple-secure-key'; // In production, use process.env.API_KEY
+const validateApiKey = (req, res, next) => {
+  // Allow OPTIONS requests (CORS preflight)
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
+  // If the request is already authenticated with a user token, skip API key check
+  if (req.user) {
+    return next();
+  }
+
+  const apiKey = req.headers['x-api-key'];
+  if (apiKey && apiKey === API_KEY) {
+    return next();
+  }
+
+  return res.status(401).json({ message: 'Access denied. Invalid or missing API Key.' });
+};
+
 // Admin creation moved to after server start
 
 // Login endpoint
@@ -216,9 +260,15 @@ app.post('/api/login', async (req, res) => {
   try {
     const user = await getAsync('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [email]);
     if (user && user.password === password) {
+      // Generate a random token
+      const token = crypto.randomBytes(64).toString('hex');
+      
+      // Save token to database
+      await runAsync('UPDATE users SET token = ? WHERE id = ?', [token, user.id]);
+
       res.status(200).json({
         message: 'Login successful',
-        token: 'fake-jwt-token',
+        token: token,
         user: {
           id: user.id,
           name: user.name,
@@ -236,7 +286,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Get all users (without passwords)
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authenticateToken, async (req, res) => {
   try {
     const rows = await allAsync('SELECT id, name, email, userType, status, createdAt, updatedAt FROM users');
     const users = rows.map(u => ({ ...u, status: Boolean(u.status) }));
@@ -248,7 +298,7 @@ app.get('/api/users', async (req, res) => {
 });
 
 // Debug endpoint – returns all fields including password (development only)
-app.get('/api/users/debug', async (req, res) => {
+app.get('/api/users/debug', authenticateToken, async (req, res) => {
   try {
     const rows = await allAsync('SELECT * FROM users');
     const users = rows.map(u => ({ ...u, status: Boolean(u.status) }));
@@ -260,7 +310,7 @@ app.get('/api/users/debug', async (req, res) => {
 });
 
 // Create new user
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', authenticateToken, async (req, res) => {
   const { name, email, password, confirmPassword, userType, status } = req.body;
   // Validation
   if (!name || !email || !password || !confirmPassword || !userType) {
@@ -315,7 +365,7 @@ app.post('/api/users', async (req, res) => {
 });
 
 // Update user by ID
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { name, email, password, userType, status } = req.body;
 
@@ -395,7 +445,7 @@ app.put('/api/users/:id', async (req, res) => {
 });
 
 // Delete single user by ID
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -414,7 +464,7 @@ app.delete('/api/users/:id', async (req, res) => {
 });
 
 // Delete multiple users (bulk delete)
-app.post('/api/users/bulk-delete', async (req, res) => {
+app.post('/api/users/bulk-delete', authenticateToken, async (req, res) => {
   const { ids } = req.body;
 
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
@@ -444,7 +494,7 @@ app.post('/api/users/bulk-delete', async (req, res) => {
 // ========================
 
 // Upload image (converts base64 to file)
-app.post('/api/upload/image', async (req, res) => {
+app.post('/api/upload/image', authenticateToken, async (req, res) => {
   const { image, type = 'featured' } = req.body;
 
   if (!image) {
@@ -484,7 +534,7 @@ app.post('/api/upload/image', async (req, res) => {
 });
 
 // Delete image
-app.delete('/api/upload/image', (req, res) => {
+app.delete('/api/upload/image', authenticateToken, (req, res) => {
   const { path: imagePath } = req.body;
 
   if (!imagePath) {
@@ -506,7 +556,7 @@ app.delete('/api/upload/image', (req, res) => {
 // ========================
 
 // Get all active articles (not deleted)
-app.get('/api/articles', async (req, res) => {
+app.get('/api/articles', validateApiKey, async (req, res) => {
   try {
     const articles = await allAsync('SELECT * FROM articles WHERE deletedAt IS NULL ORDER BY createdAt DESC');
     const formattedArticles = articles.map(formatMeta);
@@ -518,7 +568,7 @@ app.get('/api/articles', async (req, res) => {
 });
 
 // Get deleted articles (Trash)
-app.get('/api/articles/trash', async (req, res) => {
+app.get('/api/articles/trash', authenticateToken, async (req, res) => {
   try {
     const articles = await allAsync('SELECT * FROM articles WHERE deletedAt IS NOT NULL ORDER BY deletedAt DESC');
     const formattedArticles = articles.map(formatMeta);
@@ -530,7 +580,7 @@ app.get('/api/articles/trash', async (req, res) => {
 });
 
 // Get Home Content
-app.get('/api/homecontent', async (req, res) => {
+app.get('/api/homecontent', validateApiKey, async (req, res) => {
   try {
     const article = await getAsync('SELECT * FROM articles WHERE slug = ?', ['home-content']);
     if (!article) {
@@ -570,7 +620,7 @@ app.get('/api/homecontent', async (req, res) => {
 });
 
 // Update Home Content
-app.post('/api/homecontent', async (req, res) => {
+app.post('/api/homecontent', authenticateToken, async (req, res) => {
   const { title, content, bannerImage, bannerImageAlt, bannerImageCaption, meta } = req.body;
   try {
     const existing = await getAsync('SELECT id FROM articles WHERE slug = ?', ['home-content']);
@@ -617,7 +667,7 @@ app.post('/api/homecontent', async (req, res) => {
 });
 
 // Get single article
-app.get('/api/articles/:id', async (req, res) => {
+app.get('/api/articles/:id', validateApiKey, async (req, res) => {
   const { id } = req.params;
   try {
     const article = await getAsync('SELECT * FROM articles WHERE id = ?', [id]);
@@ -635,7 +685,7 @@ app.get('/api/articles/:id', async (req, res) => {
 });
 
 // Create new article
-app.post('/api/articles', async (req, res) => {
+app.post('/api/articles', authenticateToken, async (req, res) => {
   const {
     title, urlTitle, slug, parentId,
     metaTitle, metaKeywords, metaDescription,
@@ -691,7 +741,7 @@ app.post('/api/articles', async (req, res) => {
 });
 
 // Update article
-app.put('/api/articles/:id', async (req, res) => {
+app.put('/api/articles/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const {
     title, urlTitle, slug, parentId,
@@ -771,7 +821,7 @@ const getDescendantIds = async (parentId) => {
 };
 
 // Soft Delete article by ID (Cascading)
-app.delete('/api/articles/:id', async (req, res) => {
+app.delete('/api/articles/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -992,7 +1042,7 @@ const getPackageCountForPlace = async (placeId) => {
 };
 
 // Get all active places (not deleted)
-app.get('/api/places', async (req, res) => {
+app.get('/api/places', validateApiKey, async (req, res) => {
   const { isFeatured } = req.query;
   try {
     let query = 'SELECT * FROM places WHERE deletedAt IS NULL';
@@ -1036,7 +1086,7 @@ app.get('/api/places', async (req, res) => {
 });
 
 // Get deleted places (Trash)
-app.get('/api/places/trash', async (req, res) => {
+app.get('/api/places/trash', authenticateToken, async (req, res) => {
   try {
     const places = await allAsync('SELECT * FROM places WHERE deletedAt IS NOT NULL ORDER BY deletedAt DESC');
     const formattedPlaces = places.map(formatMeta);
@@ -1083,7 +1133,7 @@ app.get('/api/places/slug/:slug', async (req, res) => {
 });
 
 // Create new place
-app.post('/api/places', async (req, res) => {
+app.post('/api/places', authenticateToken, async (req, res) => {
   const {
     title, urlTitle, slug, parentId,
     metaTitle, metaKeywords, metaDescription,
@@ -1139,7 +1189,7 @@ app.post('/api/places', async (req, res) => {
 });
 
 // Update place
-app.put('/api/places/:id', async (req, res) => {
+app.put('/api/places/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const {
     title, urlTitle, slug, parentId,
@@ -1360,7 +1410,7 @@ app.put('/api/fact-categories/:id', async (req, res) => {
 });
 
 // Soft Delete place by ID (Cascading)
-app.delete('/api/places/:id', async (req, res) => {
+app.delete('/api/places/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -1531,7 +1581,7 @@ app.post('/api/places/bulk-restore', async (req, res) => {
 });
 
 // Create new package
-app.post('/api/packages', async (req, res) => {
+app.post('/api/packages', authenticateToken, async (req, res) => {
   const {
     packageTitle, urlTitle, slug, durationValue, durationUnit,
     placeIds, metaTitle, metaKeywords, metaDescription,
@@ -1670,7 +1720,7 @@ app.post('/api/packages', async (req, res) => {
 });
 
 // Get all packages (paginated)
-app.get('/api/packages', async (req, res) => {
+app.get('/api/packages', validateApiKey, async (req, res) => {
   const { page = 1, limit = 10, search, status, featured, isBestselling, ids } = req.query;
   const offset = (page - 1) * limit;
 
@@ -1824,7 +1874,7 @@ app.get('/api/packages', async (req, res) => {
 });
 
 // Get single package by ID or Slug
-app.get('/api/packages/:idOrSlug', async (req, res) => {
+app.get('/api/packages/:idOrSlug', validateApiKey, async (req, res) => {
   const { idOrSlug } = req.params;
 
   try {
@@ -2693,7 +2743,7 @@ app.delete('/api/teams/:id/permanent', async (req, res) => {
 // ========================
 
 // Get all active blogs
-app.get('/api/blogs', async (req, res) => {
+app.get('/api/blogs', validateApiKey, async (req, res) => {
   const { isFeatured } = req.query;
   try {
     let selectFields = 'blogs.*, authors.fullName as authorName';
@@ -2765,7 +2815,7 @@ app.get('/api/blogs/trash', async (req, res) => {
 });
 
 // Get single blog (by ID or slug)
-app.get('/api/blogs/:idOrSlug', async (req, res) => {
+app.get('/api/blogs/:idOrSlug', validateApiKey, async (req, res) => {
   const { idOrSlug } = req.params;
   try {
     let blog;
@@ -3066,7 +3116,7 @@ app.post('/api/testimonials', async (req, res) => {
 });
 
 // Get all testimonials (exclude deleted)
-app.get('/api/testimonials', async (req, res) => {
+app.get('/api/testimonials', validateApiKey, async (req, res) => {
   const { isFeatured, limit, offset } = req.query;
   try {
     let query = 'SELECT * FROM testimonials WHERE deletedAt IS NULL';
@@ -3166,7 +3216,7 @@ app.get('/api/testimonials/:id', async (req, res) => {
 });
 
 // Get single testimonial by Slug
-app.get('/api/testimonial-by-slug/:slug', async (req, res) => {
+app.get('/api/testimonial-by-slug/:slug', validateApiKey, async (req, res) => {
   const { slug } = req.params;
   try {
     const testimonial = await getAsync('SELECT * FROM testimonials WHERE slug = ?', [slug]);
@@ -3399,7 +3449,7 @@ app.post('/api/testimonials/bulk-delete-permanent', async (req, res) => {
 // ========================
 
 // Get all menus
-app.get('/api/menus', async (req, res) => {
+app.get('/api/menus', validateApiKey, async (req, res) => {
   try {
     const menus = await allAsync("SELECT * FROM menus WHERE deletedAt IS NULL AND (urlSegmentType != 'package' OR urlSegmentType IS NULL) ORDER BY displayOrder, createdAt");
     res.status(200).json(menus);
@@ -3410,7 +3460,7 @@ app.get('/api/menus', async (req, res) => {
 });
 
 // Get menus by type (header/footer)
-app.get('/api/menus/type/:type', async (req, res) => {
+app.get('/api/menus/type/:type', validateApiKey, async (req, res) => {
   const { type } = req.params;
   try {
     const menus = await allAsync("SELECT * FROM menus WHERE type = ? AND status = 1 AND deletedAt IS NULL AND (urlSegmentType != 'package' OR urlSegmentType IS NULL) ORDER BY displayOrder, createdAt", [type]);
@@ -3689,7 +3739,7 @@ app.put('/api/menus/:id/restore', async (req, res) => {
     await runAsync('UPDATE menus SET deletedAt = NULL WHERE id = ?', [id]);
     // Also restore children? Maybe not automatically, or yes?
     // Usually restore is per item, but if parent is restored, children might be expected.
-    // But for simplicity, let's just restore the item.
+    // But tracking that is hard. Let's just restore the item.
     // Actually, if we soft-deleted children, we should probably restore them too if they were deleted at the same time?
     // But tracking that is hard. Let's just restore the item for now.
     res.status(200).json({ success: true, message: 'Menu restored successfully' });
@@ -3800,7 +3850,7 @@ app.post('/api/menus/bulk-delete-permanent', async (req, res) => {
 // SLUG RESOLUTION
 // ========================
 
-app.get('/api/resolve-slug/:slug', async (req, res) => {
+app.get('/api/resolve-slug/:slug', validateApiKey, async (req, res) => {
   const { slug } = req.params;
 
   try {
@@ -3888,7 +3938,7 @@ app.get('/api/settings', async (req, res) => {
 });
 
 // Public Global Data endpoint
-app.get('/api/GlobalData', async (req, res) => {
+app.get('/api/GlobalData', validateApiKey, async (req, res) => {
   try {
     const settings = await getAsync('SELECT * FROM settings ORDER BY id ASC LIMIT 1');
     if (settings) {
@@ -3984,7 +4034,7 @@ app.post('/api/settings', async (req, res) => {
 // ========================
 
 // Get hero section
-app.get('/api/hero', async (req, res) => {
+app.get('/api/hero', validateApiKey, async (req, res) => {
   try {
     const hero = await getAsync('SELECT * FROM hero_sections ORDER BY id ASC LIMIT 1');
     res.json(hero || {});
@@ -4023,7 +4073,7 @@ app.post('/api/hero', async (req, res) => {
 });
 
 // Get all slugs for static generation (ISR)
-app.get('/api/all-slugs', async (req, res) => {
+app.get('/api/all-slugs', validateApiKey, async (req, res) => {
   try {
     // Helper to fetch safely
     const fetchSafe = async (name, query) => {
